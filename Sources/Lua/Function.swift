@@ -1,36 +1,45 @@
 import CLua
 
-public struct FunctionError : Error, CustomStringConvertible {
-    public let description: String
-}
 
-public class Function : StoredValue {
-    public func call(_ args: [Value]) throws -> [Value] {
-        let debugTable = lua.globals["debug"] as! Table
+public class Function: StoredValue {
+    public func call(_ arguments: Value...) throws -> [Value] {
+        try self.call(arguments)
+    }
+    
+    public func call(_ arguments: [Value]) throws -> [Value] {
+        let debugTable = self.lua.globals["debug"] as! Table
         let messageHandler = debugTable["traceback"]
 
-        let originalStackTop = lua.topElementIndex
+        let originalStackTop = self.lua.topElementIndex
 
-        messageHandler.push(lua)
-        push(lua)
+        messageHandler.push(self.lua)
+        push(self.lua)
         
-        for arg in args {
-            arg.push(lua)
+        for argument in arguments {
+            argument.push(self.lua)
         }
 
-        let result = lua_pcallk(lua.state, Int32(args.count), LUA_MULTRET, Int32(originalStackTop + 1), 0, nil)
-        lua.remove(at: originalStackTop + 1)
+        let result = lua_pcallk(
+            self.lua.state,
+            Int32(arguments.count),
+            LUA_MULTRET,
+            Int32(originalStackTop + 1),
+            0,
+            nil
+        )
+        
+        self.lua.remove(at: originalStackTop + 1)
 
         guard result == LUA_OK else {
-            throw FunctionError(description: lua.popError())
+            throw self.lua.popError()
         }
 
         var values: [Value] = []
-        let numReturnValues = lua.topElementIndex - originalStackTop
+        let numReturnValues = self.lua.topElementIndex - originalStackTop
 
         for _ in 0 ..< numReturnValues {
-            let v = lua.pop(at: originalStackTop + 1)!
-            values.append(v)
+            let value = self.lua.pop(at: originalStackTop + 1)!
+            values.append(value)
         }
 
         return values

@@ -1,128 +1,132 @@
 import CLua
 
-extension Bool : Value {
+extension Bool: Value {
+    public var type: Type {
+        .boolean
+    }
+    
     public func push(_ lua: Lua) {
         lua_pushboolean(lua.state, self ? 1 : 0)
     }
 
-    public var type: Type {
-        return .boolean
-    }
-
     public static func typecheck(value: Value, lua: Lua) -> Bool {
-        return value.type == .boolean
+        value.type == .boolean
     }
 }
 
-public class Nil : Value, Equatable {
+#warning("TODO: Make Optional a Value")
+public class Nil: Value, Equatable {
+    public var type: Type {
+        .nil
+    }
+    
     public func push(_ lua: Lua) {
         lua_pushnil(lua.state)
     }
 
-    public var type: Type {
-        return .nil
-    }
-
     public class func typecheck(value: Value, lua: Lua) -> Bool {
-        return value.type == .nil
+        value.type == .nil
+    }
+    
+    public static func == (lhs: Nil, rhs: Nil) -> Bool {
+        true
     }
 }
 
-public func ==(lhs: Nil, rhs: Nil) -> Bool {
-    return true
-}
-
-public class Number : StoredValue, CustomDebugStringConvertible {
+public class Number: StoredValue, CustomDebugStringConvertible {
     override public var type: Type {
-        return .number
+        .number
     }
 
     public func toDouble() -> Double {
-        push(lua)
-        let v = lua_tonumberx(lua.state, -1, nil)
-        lua.pop()
-        return v
+        self.push(self.lua)
+        let double = lua_tonumberx(lua.state, -1, nil)
+        self.lua.pop()
+        return double
     }
 
     public func toInteger() -> Int64 {
-        push(lua)
-        let v = lua_tointegerx(lua.state, -1, nil)
-        lua.pop()
-        return v
+        self.push(self.lua)
+        let integer = lua_tointegerx(self.lua.state, -1, nil)
+        self.lua.pop()
+        return integer
     }
 
     public var debugDescription: String {
-        push(lua)
-        let isInteger = lua_isinteger(lua.state, -1) != 0
-        lua.pop()
+        self.push(self.lua)
+        let isInteger = lua_isinteger(self.lua.state, -1) != 0
+        self.lua.pop()
 
-        if isInteger { return toInteger().description }
-        else { return toDouble().description }
+        guard isInteger else {
+            return toDouble().description
+        }
+        
+        return toInteger().description
     }
 
-    override public class func typecheck(value: Value, lua: Lua) -> Bool {
-        return value.type == .number
+    public override class func typecheck(value: Value, lua: Lua) -> Bool {
+        value.type == .number
     }
 }
 
-extension Double : Value {
+extension Double: Value {
+    public var type: Type {
+        .number
+    }
+    
     public func push(_ lua: Lua) {
         lua_pushnumber(lua.state, self)
     }
 
-    public var type: Type {
-        return .number
-    }
-
     public static func typecheck(value: Value, lua: Lua) -> Bool {
         value.push(lua)
-        let isDouble = lua_isinteger(lua.state, -1) != 0
+        let isDouble = lua_isnumber(lua.state, -1) != 0
         lua.pop()
         return isDouble
     }
 }
 
-extension Int64 : Value {
+extension Int64: Value {
+    public var type: Type {
+        .number
+    }
+
     public func push(_ lua: Lua) {
         lua_pushinteger(lua.state, self)
     }
 
-    public var type: Type {
-        return .number
-    }
-
     public static func typecheck(value: Value, lua: Lua) -> Bool {
         value.push(lua)
-        let isDouble = lua_isinteger(lua.state, -1) != 0
+        let isInteger = lua_isinteger(lua.state, -1) != 0
         lua.pop()
-        return isDouble
+        return isInteger
     }
 }
 
-extension Int : Value {
+extension Int: Value {
+    public var type: Type {
+        .number
+    }
+    
     public func push(_ lua: Lua) {
         lua_pushinteger(lua.state, Int64(self))
     }
 
-    public var type: Type {
-        return .number
-    }
-
     public static func typecheck(value: Value, lua: Lua) -> Bool {
-        return Int64.typecheck(value: value, lua: lua)
+        Int64.typecheck(value: value, lua: lua)
     }
 }
 
-extension String : Value {
-    public func push(_ lua: Lua) {
-        lua_pushstring(lua.state, (self as String))
-    }
-
+extension String: Value {
     public var type: Type {
         return .string
     }
+    
+    public func push(_ lua: Lua) {
+        lua_pushstring(lua.state, self)
+    }
 
     public static func typecheck(value: Value, lua: Lua) -> Bool {
-        return value.type == .string
+        value.type == .string
     }
 }

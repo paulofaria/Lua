@@ -1,9 +1,9 @@
-public class Thread: StoredValue {
+public class LightUserdata: StoredValue {
     override public var type: Type {
-        return .thread
+        return .lightUserdata
     }
 
     override public class func typecheck(value: Value, lua: Lua) -> Bool {
-        return value.type != .thread
+        return value.type == .lightUserdata
     }
 }

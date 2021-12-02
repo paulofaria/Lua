@@ -1,73 +1,39 @@
 import CLua
 
-public class Userdata : StoredValue {
+public class Userdata: StoredValue {
+    override public var type: Type {
+        .userdata
+    }
+    
+    func userdataPointer() -> UnsafeMutableRawPointer {
+        self.push(self.lua)
+        let pointer = lua_touserdata(self.lua.state, -1)!
+        self.lua.pop()
+        return pointer
+    }
+    
     func userdataPointer<T>() -> UnsafeMutablePointer<T> {
-        push(lua)
-        let ptr = lua_touserdata(lua.state, -1)
-        lua.pop()
-        return ptr!.assumingMemoryBound(to: T.self)
+        self.userdataPointer().assumingMemoryBound(to: T.self)
     }
 
     func toCustomType<T: CustomTypeInstance>() -> T {
-        return userdataPointer().pointee
+        self.userdataPointer().pointee
     }
 
     func forceToCustomType<T>() -> T {
-        return userdataPointer().pointee
+        self.userdataPointer().pointee
     }
 
     func toAny() -> Any {
-        return userdataPointer().pointee
+        self.userdataPointer().pointee
     }
-
-    override public var type: Type {
-        return .userdata
-    }
-}
-
-public class LightUserdata : StoredValue {
-    override public var type: Type {
-        return .lightUserdata
-    }
-
-    override public class func typecheck(value: Value, lua: Lua) -> Bool {
-        return value.type == .lightUserdata
+    
+    public override class func typecheck(value: Value, lua: Lua) -> Bool {
+        value.type == .userdata
     }
 }
 
-public protocol CustomTypeInstance : TypeCheckable {
-    static var luaTypeName: String { get }
-}
 
-public extension CustomTypeInstance {
-    static var luaTypeName: String {
-        return String(reflecting: self)
-    }
 
-    static func typecheck(value: Value, lua: Lua) -> Bool {
-        value.push(lua)
-        let isLegit = luaL_testudata(lua.state, -1, (Self.luaTypeName as String)) != nil
-        lua.pop()
-        return isLegit
-    }
-}
 
-public class CustomType<T: CustomTypeInstance> : Table {
-    var deinitialize: (T) -> Void = { _ in }
 
-    public func deinitialize(_ closure: @escaping (T) -> Void) {
-        deinitialize = closure
-    }
-
-    public func create(method: String, _ body: @escaping (T) -> [Value]) {
-        self[method] = lua.createFunction(body: body)
-    }
-
-    public func create<A : Value>(method: String, _ body: @escaping (T, A) -> [Value]) {
-        self[method] = lua.createFunction(body: body)
-    }
-
-    public func create<A : Value, B : Value>(method: String, _ body: @escaping (T, A, B) -> [Value]) {
-        self[method] = lua.createFunction(body: body)
-    }
-}
