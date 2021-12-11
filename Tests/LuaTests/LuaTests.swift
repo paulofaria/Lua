@@ -1,7 +1,6 @@
 import XCTest
 @testable import Lua
 
-#warning("TODO: Map an array to a table in lua")
 func split(subject: String, separator: String) -> [String] {
     subject.components(separatedBy: separator)
 }
@@ -47,9 +46,12 @@ class LuaTests : XCTestCase {
     func testCreateTable() throws {
         let lua = Lua()
         let table = lua.table()
-        table[3] = "foo"
-        XCTAssert(table[3] is String)
-        XCTAssertEqual(table[3] as! String, "foo")
+        
+        table.foo = "foo"
+        XCTAssertEqual(table.foo as String, "foo")
+
+        table[3] = "three"
+        XCTAssertEqual(table[3] as String, "three")
     }
     
     func testCallLuaFunctionFromSwift() throws {
@@ -69,7 +71,7 @@ class LuaTests : XCTestCase {
             """
         )
         
-        let split: Function = lua.globals["split"]
+        let split: Function = lua.split
         let values = try split.call("hello world", " ")
         
         XCTAssertEqual(values.count, 1)
@@ -81,7 +83,7 @@ class LuaTests : XCTestCase {
     
     func testCallSwiftFunctionFromLua() throws {
         let lua = Lua()
-        lua.globals["split"] = lua.function(split)
+        lua.split = lua.function(split)
         let values = try lua.evaluate("return split('hello world', ' ')")
 
         XCTAssertEqual(values.count, 1)
@@ -94,23 +96,23 @@ class LuaTests : XCTestCase {
     func testCustomType() throws {
         let lua = Lua()
 
-        #warning("Add property to table")
-        lua.globals["note"] = lua.table(of: Note.self)
-            .function("new", Note.init)
+        lua.note = lua.table(of: Note.self)
             .field("name", \.$name)
+            .function("new", Note.init)
             .method("getName", Note.getName)
             .method("setName", Note.setName)
             
         try lua.evaluate("noteA = note.new('Note A')")
-        let noteA: Note = lua.globals["noteA"]
+        let noteA: Note = lua.noteA
         XCTAssertEqual(noteA.name, "Note A")
         
-        noteA.name = "yo"
-        let yo = try lua.evaluate("return noteA.name")
-        print(yo)
+        noteA.name = "Note A-"
+        var nameFromLua = try lua.evaluate("return noteA.name")[0] as! String
+        XCTAssertEqual(nameFromLua, "Note A-")
 
         noteA.name = "Note A*"
-        try lua.evaluate("print(noteA:getName())")
+        nameFromLua = try lua.evaluate("return noteA:getName()")[0] as! String
+        XCTAssertEqual(nameFromLua, "Note A*")
 
         try lua.evaluate("noteA:setName('Note A**')")
         XCTAssertEqual(noteA.name, "Note A**")
@@ -125,7 +127,7 @@ class LuaTests : XCTestCase {
             XCTAssertTrue(noteA === note)
         }
         
-        lua.globals["checkNote"] = lua.function(checkNote)
+        lua.checkNote = lua.function(checkNote)
         try lua.evaluate("checkNote(noteA)")
         XCTAssertTrue(checkNoteCalled)
         
@@ -133,18 +135,32 @@ class LuaTests : XCTestCase {
         var isEqual = try lua.evaluate("return noteA == noteB")[0] as! Bool
         XCTAssertFalse(isEqual)
         
-        let noteB: Note = lua.globals["noteB"]
+        var noteBFromLua: Note?
+        
+        func getNote(_ note: Note) {
+            noteBFromLua = note
+        }
+        
+        lua.getNote = lua.function(getNote)
+        try lua.evaluate("getNote(noteB)")
+        
+        let noteB: Note = lua.noteB
+        XCTAssertTrue(noteB === noteBFromLua)
+        
         noteA.name = "Note C"
         noteB.name = "Note C"
         
         isEqual = try lua.evaluate("return noteA == noteB")[0] as! Bool
         XCTAssertTrue(isEqual)
+        
+        #warning("TODO: Send note from Swift to Lua.")
     }
     
 //    func testAPI() {
 //        let lua = Lua()
 //
-//        lua.globals["note"] = lua.table(of: Note.self) {
+//        lua.note = table(of: Note.self) {
+//            field("name", \.$name)
 //            function("new", Note.init)
 //            method("setName", Note.setName)
 //            method("getName", Note.getName)

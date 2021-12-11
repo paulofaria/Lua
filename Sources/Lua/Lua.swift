@@ -93,12 +93,14 @@ final class AnyType: Hashable {
     }
 }
 
+@dynamicMemberLookup
 public class Lua {
     internal static let registryIndex = Int(CLUA_REGISTRYINDEX)
     private static let globalsTable = Int(LUA_RIDX_GLOBALS)
     let shouldCloseOnDeinit: Bool
     
     #warning("TODO: Use weak references here.")
+    #warning("TODO: Deal with staticness here.")
     static var typeMap: [AnyType: (AnyKeyPath, Table, String)] = [:]
     
     internal let state: OpaquePointer!
@@ -137,6 +139,36 @@ public class Lua {
     public var globals: Table {
         self.rawGet(at: Self.registryIndex, n: Self.globalsTable)
         return self.pop(at: -1) as! Table
+    }
+    
+    public subscript(dynamicMember member: String) -> Value {
+        get {
+            self.globals[member]
+        }
+        
+        set {
+            self.globals[member] = newValue
+        }
+    }
+    
+    public subscript<T: Value>(dynamicMember member: String) -> T {
+        get {
+            self.globals[member]
+        }
+        
+        set {
+            self.globals[member] = newValue
+        }
+    }
+    
+    public subscript<T: CustomTypeInstance>(dynamicMember member: String) -> T {
+        get {
+            self.globals[member]
+        }
+        
+        set {
+            self.globals[member] = newValue
+        }
     }
 
     public var registry: Table {
@@ -608,7 +640,6 @@ extension Lua {
         customType["__gc"] = self.function { (userdata: Userdata) -> Void in
             let instance: T = userdata.toCustomType()
             instance.deinitialize()
-            #warning("TODO: Is deinitializing useful at all?")
             (userdata.userdataPointer() as UnsafeMutablePointer<T>)
                 .deinitialize(count: 1)
         }

@@ -1,5 +1,6 @@
 import CLua
 
+@dynamicMemberLookup
 public class Table: StoredValue {
     public override var type: Type {
         .table
@@ -9,25 +10,6 @@ public class Table: StoredValue {
         value.type == .table
     }
     
-    public subscript<U: Value>(key: Value, as type: U.Type = U.self) -> U {
-        self[key] as! U
-    }
-    
-    public subscript<U: CustomTypeInstance>(key: Value, as type: U.Type = U.self) -> U {
-        let instance: U = (self[key] as! Userdata).toCustomType()
-        
-        #warning("TODO: Deal with staticness here.")
-        print(Lua.typeMap)
-        if
-            let (keypath, table, key) = Lua.typeMap[AnyType(type)],
-            let field = instance[keyPath: keypath] as? FieldBindable
-        {
-            field.bind(table: table, key: key)
-        }
-        
-        return instance
-    }
-
     public subscript(key: Value) -> Value {
         get {
             self.push(self.lua)
@@ -44,6 +26,66 @@ public class Table: StoredValue {
             newValue.push(self.lua)
             lua_settable(self.lua.state, -3)
             self.lua.pop()
+        }
+    }
+    
+    public subscript<U: Value>(key: Value, as type: U.Type = U.self) -> U {
+        get {
+            self[key] as! U
+        }
+        
+        set {
+            self[key] = newValue
+        }
+    }
+    
+    public subscript<U: CustomTypeInstance>(key: Value, as type: U.Type = U.self) -> U {
+        get {
+            let instance: U = (self[key] as! Userdata).toCustomType()
+            
+            #warning("TODO: Only bind if not yet bound?")
+            if
+                let (keypath, table, key) = Lua.typeMap[AnyType(type)],
+                let field = instance[keyPath: keypath] as? FieldBindable
+            {
+                field.bind(table: table, key: key)
+            }
+            
+            return instance
+        }
+        
+        set {
+            self[key] = self.lua.userdata(newValue)
+        }
+    }
+    
+    public subscript(dynamicMember member: String) -> Value {
+        get {
+            self[member]
+        }
+        
+        set {
+            self[member] = newValue
+        }
+    }
+    
+    public subscript<T: Value>(dynamicMember member: String) -> T {
+        get {
+            self[member]
+        }
+        
+        set {
+            self[member] = newValue
+        }
+    }
+    
+    public subscript<T: CustomTypeInstance>(dynamicMember member: String) -> T {
+        get {
+            self[member]
+        }
+        
+        set {
+            self[member] = newValue
         }
     }
     
@@ -106,6 +148,7 @@ public class Table: StoredValue {
         self.lua.pop()
     }
 
+    #warning("TODO: Create existential version")
     public func asTupleArray<K1: Value, V1: Value, K2: Value, V2: Value>(
         _ mapKey: (K1) -> K2 = { $0 as! K2 },
         _ mapValue: (V1) -> V2 = { $0 as! V2 }
@@ -115,29 +158,34 @@ public class Table: StoredValue {
         for key in self.keys() {
             let value = self[key]
             
-            if key is K1 && value is V1 {
-                tupleArray.append((mapKey(key as! K1), mapValue(value as! V1)))
+            if
+                let key = key as? K1,
+                let value = value as? V1
+            {
+                tupleArray.append((mapKey(key), mapValue(value)))
             }
         }
         
         return tupleArray
     }
 
+    #warning("TODO: Create existential version")
     public func asDictionary<K1: Value, V1: Value, K2: Value, V2: Value>(
         _ mapKey: (K1) -> K2 = {$0 as! K2},
         _ mapValue: (V1) -> V2 = {$0 as! V2}
     ) -> [K2: V2] where K2: Hashable {
         var dictionary: [K2: V2] = [:]
         
-        for (key, val) in self.asTupleArray(mapKey, mapValue) {
-            dictionary[key] = val
+        for (key, value) in self.asTupleArray(mapKey, mapValue) {
+            dictionary[key] = value
         }
         
         return dictionary
     }
 
+    #warning("TODO: Create existential version")
     public func asArray<T: Value>() -> [T] {
-        var sequence: [T] = []
+        var array: [T] = []
 
         let dictionary: [Int64: T] = self.asDictionary(
             { (key: Number) in key.toInteger() },
@@ -145,21 +193,22 @@ public class Table: StoredValue {
         )
 
         guard !dictionary.isEmpty else {
-            return sequence
+            return array
         }
 
         // ensure table has no holes and keys start at 1
         let sortedKeys = dictionary.keys.sorted()
         
         guard [Int64](1...sortedKeys.last!) == sortedKeys else {
-            return sequence
+            #warning("TODO: Maybe fatal error here?")
+            return array
         }
 
         // append values to the array, in order
         for i in sortedKeys {
-            sequence.append(dictionary[i]!)
+            array.append(dictionary[i]!)
         }
 
-        return sequence
+        return array
     }
 }

@@ -1,7 +1,15 @@
 import CLua
 
-
 public class Function: StoredValue {
+    override public var type: Type {
+        return .function
+    }
+
+    override public class func typecheck(value: Value, lua: Lua) -> Bool {
+        return value.type == .function
+    }
+    
+    #warning("TODO: Create overloads for multi-value, single-value, void")
     public func call(_ arguments: Value...) throws -> [Value] {
         try self.call(arguments)
     }
@@ -43,13 +51,5 @@ public class Function: StoredValue {
         }
 
         return values
-    }
-
-    override public var type: Type {
-        return .function
-    }
-
-    override public class func typecheck(value: Value, lua: Lua) -> Bool {
-        return value.type == .function
     }
 }
